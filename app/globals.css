@@ -14,6 +14,8 @@
   --sans: var(--font-sans), -apple-system, "Segoe UI", system-ui, sans-serif;
   --mono: var(--font-mono), ui-monospace, "Cascadia Code", Consolas, monospace;
   --e: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 * {
@@ -53,9 +55,19 @@ a {
 
 /* Nav */
 nav {
-  position: relative;
+  position: sticky;
+  top: 0;
   z-index: 20;
-  border-bottom: 1px solid var(--line2);
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  transition: background-color 0.4s var(--ease-out-quart), border-color 0.4s var(--ease-out-quart),
+    backdrop-filter 0.4s var(--ease-out-quart);
+}
+nav.scrolled {
+  background: rgba(10, 10, 10, 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom-color: var(--line2);
 }
 nav .inner {
   max-width: 1120px;
@@ -109,6 +121,33 @@ nav .cta {
   margin: 0 auto;
   padding: 80px 24px 120px;
   text-align: center;
+}
+/* Hero's one signature entrance: content is visible by default (no JS
+   dependency), the keyframe just adds a bounded, self-completing rise. */
+@keyframes heroRise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.hero-content > * {
+  animation: heroRise 0.7s var(--ease-out-quart) both;
+}
+.hero-content > *:nth-child(1) {
+  animation-delay: 0.05s;
+}
+.hero-content > *:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.hero-content > *:nth-child(3) {
+  animation-delay: 0.28s;
+}
+.hero-content > *:nth-child(4) {
+  animation-delay: 0.4s;
 }
 .hero-content h1 {
   font-family: var(--serif);
@@ -317,3 +356,88 @@ footer .copy { color: var(--dim); font-family: var(--mono); font-size: 10.5px; }
 .legal-page ul { padding-left: 22px; margin: 12px 0; }
 .legal-page strong { color: var(--in); font-weight: 600; }
 .legal-page a.inline-link { color: var(--redlight); text-decoration: underline; }
+
+/* ---------------------------------------------------------------------
+   Scroll motion. Everything below enhances an already-visible default:
+   [data-reveal] elements render fully visible with no JS. Only once
+   ScrollReveal.tsx runs does it add `.reveal-init` (the hidden start
+   state) immediately before observing, so content never ships blank to
+   a crawler, a no-JS browser, or a paused/backgrounded tab.
+--------------------------------------------------------------------- */
+[data-reveal].reveal-init {
+  opacity: 0;
+  transition: opacity 0.7s var(--ease-out-quart), transform 0.7s var(--ease-out-quart),
+    filter 0.8s var(--ease-out-quart);
+}
+[data-reveal="left"].reveal-init { transform: translateX(-28px); }
+[data-reveal="right"].reveal-init { transform: translateX(28px); }
+[data-reveal="up"].reveal-init { transform: translateY(22px); }
+[data-reveal="blur"].reveal-init {
+  transform: translateY(10px);
+  filter: blur(10px);
+}
+[data-reveal].reveal-init.revealed {
+  opacity: 1;
+  transform: none;
+  filter: none;
+}
+
+/* Poll bars: fill from zero on reveal — a data reveal, not decoration.
+   Base rule always renders the correct final width (safe no-JS default);
+   `.reveal-init` (added only once JS runs) is what makes it start at 0%. */
+.mock-poll .opt .bar {
+  width: var(--w);
+}
+.mock-poll.reveal-init .opt .bar {
+  width: 0%;
+  transition: width 0.7s var(--ease-out-expo);
+}
+.mock-poll.reveal-init.revealed .opt:nth-child(1) .bar { width: var(--w); transition-delay: 0ms; }
+.mock-poll.reveal-init.revealed .opt:nth-child(2) .bar { width: var(--w); transition-delay: 90ms; }
+.mock-poll.reveal-init.revealed .opt:nth-child(3) .bar { width: var(--w); transition-delay: 180ms; }
+
+/* Interest chips: small list, legitimate stagger (7 items x 40ms = 280ms).
+   Chips are fully visible by default (existing .chip rule); only once JS
+   adds `.reveal-init` to the grid do they hide ahead of the stagger-in. */
+@keyframes chipIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.chip-grid.reveal-init .chip {
+  opacity: 0;
+}
+.chip-grid.reveal-init.revealed .chip {
+  animation: chipIn 0.35s var(--ease-out-quart) both;
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-content > * {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  [data-reveal].reveal-init {
+    transition: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+  }
+  .mock-poll .opt .bar {
+    transition: none !important;
+    width: var(--w) !important;
+  }
+  .chip-grid .chip {
+    opacity: 1 !important;
+    animation: none !important;
+  }
+  nav {
+    transition: none !important;
+  }
+}

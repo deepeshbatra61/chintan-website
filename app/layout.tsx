@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Playfair_Display, Instrument_Sans, JetBrains_Mono } from "next/font/google";
+import ScrollReveal from "./components/ScrollReveal";
 import "./globals.css";
 
 const playfair = Playfair_Display({
@@ -45,7 +46,10 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${playfair.variable} ${instrumentSans.variable} ${jetbrainsMono.variable}`}>
-      <body>{children}</body>
+      <body>
+        {children}
+        <ScrollReveal />
+      </body>
     </html>
   );
 }

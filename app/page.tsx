@@ -44,7 +44,7 @@ export default function Home() {
 
       <div className="section">
         <div className="feature-row">
-          <div className="feature-visual">
+          <div className="feature-visual" data-reveal="left">
             <div className="phone">
               <div className="screen">
                 <div className="mock-brief">
@@ -78,7 +78,7 @@ export default function Home() {
               </div>
             </div>
           </div>
-          <div className="feature-text">
+          <div className="feature-text" data-reveal="right" style={{ transitionDelay: "100ms" }}>
             <span className="feature-num">01 / The Briefs Triptych</span>
             <h3>Three moments a day, not three hundred notifications.</h3>
             <p>
@@ -90,7 +90,7 @@ export default function Home() {
         </div>
 
         <div className="feature-row reverse">
-          <div className="feature-text">
+          <div className="feature-text" data-reveal="right">
             <span className="feature-num">02 / Developing Stories</span>
             <h3>Stories that update. Not sixteen versions of the same headline.</h3>
             <p>
@@ -101,7 +101,7 @@ export default function Home() {
               quiet down over weeks, not just today.
             </p>
           </div>
-          <div className="feature-visual">
+          <div className="feature-visual" data-reveal="left" style={{ transitionDelay: "100ms" }}>
             <div className="phone">
               <div className="screen">
                 <div className="mock-header" />
@@ -134,7 +134,7 @@ export default function Home() {
         </div>
 
         <div className="feature-row">
-          <div className="feature-visual">
+          <div className="feature-visual" data-reveal="left">
             <div className="phone">
               <div className="screen">
                 <div className="mock-other">
@@ -149,7 +149,7 @@ export default function Home() {
               </div>
             </div>
           </div>
-          <div className="feature-text">
+          <div className="feature-text" data-reveal="right" style={{ transitionDelay: "100ms" }}>
             <span className="feature-num">03 / The Other Side</span>
             <h3>The view you weren&apos;t looking for, on purpose.</h3>
             <p>
@@ -161,7 +161,7 @@ export default function Home() {
         </div>
 
         <div className="feature-row reverse">
-          <div className="feature-text">
+          <div className="feature-text" data-reveal="right">
             <span className="feature-num">04 / Ask Chintan</span>
             <h3>A reading companion, not a chatbot bolted on afterward.</h3>
             <p>
@@ -171,7 +171,7 @@ export default function Home() {
               remember to open.
             </p>
           </div>
-          <div className="feature-visual">
+          <div className="feature-visual" data-reveal="left" style={{ transitionDelay: "100ms" }}>
             <div className="phone">
               <div className="screen">
                 <div className="mock-ai">
@@ -190,7 +190,7 @@ export default function Home() {
         </div>
 
         <div className="feature-row">
-          <div className="feature-visual">
+          <div className="feature-visual" data-reveal="left">
             <div className="phone">
               <div className="screen">
                 <div className="mock-poll">
@@ -198,22 +198,22 @@ export default function Home() {
                     Should platforms be required to label AI-generated news content?
                   </div>
                   <div className="opt">
-                    <div className="bar" style={{ width: "71%" }} />
+                    <div className="bar" style={{ "--w": "71%" } as React.CSSProperties} />
                     <span>Yes, always — 71%</span>
                   </div>
                   <div className="opt">
-                    <div className="bar" style={{ width: "19%" }} />
+                    <div className="bar" style={{ "--w": "19%" } as React.CSSProperties} />
                     <span>Only above a threshold — 19%</span>
                   </div>
                   <div className="opt">
-                    <div className="bar" style={{ width: "10%" }} />
+                    <div className="bar" style={{ "--w": "10%" } as React.CSSProperties} />
                     <span>No, unnecessary — 10%</span>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-          <div className="feature-text">
+          <div className="feature-text" data-reveal="right" style={{ transitionDelay: "100ms" }}>
             <span className="feature-num">05 / Polls &amp; Community</span>
             <h3>See where the room actually stands, not just the loudest voice in it.</h3>
             <p>
@@ -224,7 +224,7 @@ export default function Home() {
         </div>
 
         <div className="feature-row reverse">
-          <div className="feature-text">
+          <div className="feature-text" data-reveal="right">
             <span className="feature-num">06 / Your Interests</span>
             <h3>You choose what matters. Chintan builds around it from day one.</h3>
             <p>
@@ -233,20 +233,20 @@ export default function Home() {
               what will keep you scrolling longest.
             </p>
           </div>
-          <div className="feature-visual">
+          <div className="feature-visual" data-reveal="left" style={{ transitionDelay: "100ms" }}>
             <div className="phone">
               <div className="screen">
                 <div className="mock-interest">
                   <h5>Edit interests</h5>
                   <div className="sub">Pick your topics</div>
                   <div className="chip-grid">
-                    <div className="chip on">Politics</div>
-                    <div className="chip on">Markets</div>
-                    <div className="chip">Cricket</div>
-                    <div className="chip on">Foreign Affairs</div>
-                    <div className="chip">Bollywood</div>
-                    <div className="chip on">Technology</div>
-                    <div className="chip">Science</div>
+                    <div className="chip on" style={{ "--i": 0 } as React.CSSProperties}>Politics</div>
+                    <div className="chip on" style={{ "--i": 1 } as React.CSSProperties}>Markets</div>
+                    <div className="chip" style={{ "--i": 2 } as React.CSSProperties}>Cricket</div>
+                    <div className="chip on" style={{ "--i": 3 } as React.CSSProperties}>Foreign Affairs</div>
+                    <div className="chip" style={{ "--i": 4 } as React.CSSProperties}>Bollywood</div>
+                    <div className="chip on" style={{ "--i": 5 } as React.CSSProperties}>Technology</div>
+                    <div className="chip" style={{ "--i": 6 } as React.CSSProperties}>Science</div>
                   </div>
                 </div>
               </div>
@@ -255,7 +255,7 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="quote-block">
+      <div className="quote-block" data-reveal="blur">
         <blockquote>
           &ldquo;The ability to read for depth is being traded for the ability to scan for
           relevance.&rdquo;
