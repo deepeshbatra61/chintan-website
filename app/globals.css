@@ -357,6 +357,109 @@ footer .copy { color: var(--dim); font-family: var(--mono); font-size: 10.5px; }
 .legal-page strong { color: var(--in); font-weight: 600; }
 .legal-page a.inline-link { color: var(--redlight); text-decoration: underline; }
 
+/* Account deletion form */
+.delete-form {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 28px;
+  margin: 24px 0 32px;
+}
+.delete-form label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--mut2);
+  margin: 16px 0 6px;
+}
+.delete-form label:first-of-type {
+  margin-top: 0;
+}
+.delete-form input {
+  width: 100%;
+  background: var(--ob);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px 14px;
+  font-family: var(--sans);
+  font-size: 15px;
+  color: var(--in);
+}
+.delete-form input:focus {
+  outline: none;
+  border-color: var(--redlight);
+}
+.delete-form__submit {
+  margin-top: 20px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--in);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 13px 22px;
+  cursor: pointer;
+  transition: background-color 0.2s var(--ease-out-quart), border-color 0.2s var(--ease-out-quart);
+}
+.delete-form__submit:hover {
+  border-color: var(--mut2);
+}
+.delete-form__submit--danger {
+  color: #fff;
+  background: var(--red);
+  border-color: var(--red);
+}
+.delete-form__submit--danger:hover {
+  background: #b91c1c;
+  border-color: #b91c1c;
+}
+.delete-form__confirm {
+  margin-top: 20px;
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+}
+.delete-form__confirm p {
+  font-size: 14px;
+  color: var(--redlight);
+  margin: 0 0 14px;
+}
+.delete-form__confirm-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.delete-form__cancel {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--mut2);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 13px 8px;
+}
+.delete-form__status {
+  margin-top: 14px;
+  font-size: 14px;
+}
+.delete-form__status--error {
+  color: var(--redlight);
+}
+.delete-form--done {
+  background: rgba(220, 38, 38, 0.08);
+  border-color: rgba(220, 38, 38, 0.3);
+}
+.delete-form--done p {
+  margin: 0;
+  color: var(--in);
+}
+
 /* ---------------------------------------------------------------------
    Scroll motion. Everything below enhances an already-visible default:
    [data-reveal] elements render fully visible with no JS. Only once

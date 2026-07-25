@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Nav from "../components/Nav";
 import Footer from "../components/Footer";
+import DeleteAccountForm from "./DeleteAccountForm";
 
 export const metadata: Metadata = {
   title: "Data Safety & Account Deletion — Chintan",
@@ -37,32 +38,28 @@ export default function DataSafetyPage() {
         </ul>
         <p>We do not collect precise location, contacts, or financial information, and we do not share your data with advertisers.</p>
 
-        <h2>How to delete your account and data</h2>
-        <p>You can request full deletion of your account and all associated data in either of these ways:</p>
-        <ul>
-          <li>
-            <strong>In-app:</strong> Settings → Account → Delete Account. This immediately begins
-            deletion of your account, bookmarks, comments, poll history, and interests.
-          </li>
-          <li>
-            <strong>By email:</strong> if you don&apos;t have access to the app, email us via the{" "}
-            <a className="inline-link" href="/contact">
-              Contact
-            </a>{" "}
-            page from the address associated with your account, and we&apos;ll process the
-            deletion request.
-          </li>
-        </ul>
+        <h2>Delete your account and data</h2>
         <p>
-          Deletion is typically completed within 30 days. Some minimal records may be retained
-          longer only where required by law (for example, financial or fraud-prevention records),
-          and never used for any other purpose.
+          Enter your account email and password below to permanently delete your account,
+          bookmarks, comments, poll history, and interests. This works right here — no app or
+          sign-in required — and takes effect immediately.
+        </p>
+
+        <DeleteAccountForm />
+
+        <p>
+          Don&apos;t have your password, or the email above didn&apos;t work? Email us via the{" "}
+          <a className="inline-link" href="/contact">
+            Contact
+          </a>{" "}
+          page from the address associated with your account and we&apos;ll process the deletion
+          request manually.
         </p>
 
         <h2>Partial deletion</h2>
         <p>
-          You can also delete individual pieces of data — a single comment, a bookmark, your poll
-          history — from within the app, without deleting your whole account.
+          You can remove individual bookmarks from within the app (swipe to delete on the Saved
+          page) without deleting your whole account.
         </p>
       </main>
       <Footer />
