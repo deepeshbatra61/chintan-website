@@ -23,9 +23,14 @@ export default function ContactPage() {
 
         <h2>Email</h2>
         <p>
-          <a className="inline-link" href="mailto:hello@chintan.news">
-            hello@chintan.news
+          <a className="inline-link" href="mailto:team@chintan.news">
+            team@chintan.news
           </a>
+        </p>
+
+        <h2>Entity</h2>
+        <p>
+          Chintan is operated by <strong>Chintan Labs</strong>, based in New Delhi, India.
         </p>
 
         <h2>Account &amp; data requests</h2>
