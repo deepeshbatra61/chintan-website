@@ -6,6 +6,7 @@ export default function Footer() {
       <div className="inner">
         <div className="copy">© {new Date().getFullYear()} Chintan. Don&apos;t just consume. Contemplate.</div>
         <div className="links">
+          <Link href="/about">About</Link>
           <Link href="/privacy">Privacy Policy</Link>
           <Link href="/terms">Terms of Service</Link>
           <Link href="/data-safety">Data &amp; Account Deletion</Link>
