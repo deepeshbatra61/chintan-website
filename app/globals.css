@@ -444,6 +444,59 @@ footer .copy { color: var(--dim); font-family: var(--mono); font-size: 10.5px; }
   cursor: pointer;
   padding: 13px 8px;
 }
+/* Feedback form additions. Reuses .delete-form for the shell so the two
+   account-adjacent forms on this site stay visually identical -- only the
+   controls the reset form never needed are defined here. */
+.delete-form textarea {
+  width: 100%;
+  background: var(--ob);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px 14px;
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--in);
+  resize: vertical;
+  min-height: 130px;
+}
+.delete-form textarea:focus {
+  outline: none;
+  border-color: var(--redlight);
+}
+.delete-form textarea::placeholder {
+  color: var(--mut2);
+}
+.rating-row {
+  display: flex;
+  gap: 8px;
+}
+.rating-btn {
+  flex: 1;
+  background: var(--ob);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  /* Deliberately tall: this gets tapped on phones, and a 12px-tall target is
+     how you lose the half of your testers who are over sixty. */
+  padding: 13px 0;
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--mut2);
+  cursor: pointer;
+  transition: background-color 0.18s var(--ease-out-quart),
+              border-color 0.18s var(--ease-out-quart),
+              color 0.18s var(--ease-out-quart);
+}
+.rating-btn:hover {
+  border-color: var(--mut2);
+  color: var(--in);
+}
+.rating-btn--on {
+  background: rgba(220, 38, 38, 0.12);
+  border-color: rgba(220, 38, 38, 0.45);
+  color: var(--redlight);
+}
+
 .delete-form__status {
   margin-top: 14px;
   font-size: 14px;
