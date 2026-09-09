@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.chintan.app",
+      "sha256_cert_fingerprints": [
+        "A4:6E:20:25:A3:CB:BE:4B:58:07:68:B7:4C:4B:F2:B1:2E:FF:33:D1:7B:DD:22:48:35:46:AD:B6:2B:97:BD:5A"
+      ]
+    }
+  }
+]
