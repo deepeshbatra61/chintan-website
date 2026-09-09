@@ -66,7 +66,9 @@ export async function generateMetadata({
     openGraph: {
       title: article.title,
       description,
-      url: `https://chintan.news/article/${article.article_id}`,
+      // www, matching SHARE_BASE in the app and the host the App Link verifies
+      // against. The apex only 308s here anyway.
+      url: `https://www.chintan.news/article/${article.article_id}`,
       siteName: "Chintan",
       type: "article",
       locale: "en_IN",
