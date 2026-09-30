@@ -21,6 +21,7 @@ type Draft = {
   headline: string; summary: string; points: string[]; keywords: string[];
   citations: Citation[]; domain_count: number; image_url: string; source_url: string | null;
   single_source_reason: string; long_running: boolean; attribution: string | null;
+  national: boolean | null; sensitive: boolean | null;
   published_ref: { type: string; id: string; article_id?: string } | null;
   created_at: string; updated_at: string; errors: string[];
 };
@@ -32,7 +33,18 @@ type LiveItem = {
   absorbed: { article_id: string; title: string; source: string }[]; story: Story | null;
 };
 type Items = { drafts: Draft[]; published: LiveItem[] };
-type View = { name: "home" } | { name: "draft"; id: string } | { name: "item"; id: string };
+type View = { name: "home" } | { name: "draft"; id: string } | { name: "item"; id: string } | { name: "push" };
+type PushRow = { sent: number; tapped: number; skipped: number };
+type PushPanel = {
+  state: { enabled: boolean; env_enabled: boolean; env_reason: string | null; updated_at: string | null; updated_by: string | null };
+  rows: Record<"sunrise" | "noon" | "dusk" | "breaking", PushRow>;
+  errors: { error: string | null; detail: string | null; sent_at: string; kind: string }[];
+  devices: number; readers: number; test_email_set: boolean;
+  next_slot: { slot: string; local_time: string; tz: string; readers: number } | null;
+};
+type Reach = { readers: number; devices: number; held: Record<string, number>; live: boolean };
+type BreakingPreview = { title: string; body: string; category: string; national: boolean; already_sent: boolean; reach: Reach };
+type BreakingReceipt = { ok: boolean; sent: number; failed: number; held: Record<string, number>; title: string; body: string };
 
 const CATEGORIES = ["Politics", "Business", "Technology", "Sports", "Entertainment", "Science", "World"];
 const HEATS: { v: Heat; label: string; means: string }[] = [
@@ -758,6 +770,23 @@ function DraftView({ api, id, back, onPublished, onReplaced, toast }: {
         )}
 
         <div className="desk-field">
+          <label className="desk-switch">
+            <span>
+              <span className="desk-label" style={{ margin: 0 }}>Every reader</span>
+              <span className="desk-hint" style={{ display: "block", marginTop: 2 }}>If you send this as a Breaking push, it goes to everyone, guests included, not only readers who follow {draft.category}.</span>
+            </span>
+            <input type="checkbox" checked={!!draft.national} onChange={(e) => edit({ national: e.target.checked })} />
+          </label>
+          <label className="desk-switch" style={{ marginTop: 8 }}>
+            <span>
+              <span className="desk-label" style={{ margin: 0 }}>Sensitive story</span>
+              <span className="desk-hint" style={{ display: "block", marginTop: 2 }}>Deaths, disasters, violence. Push copy stays plain: no wordplay, no photo.</span>
+            </span>
+            <input type="checkbox" checked={!!draft.sensitive} onChange={(e) => edit({ sensitive: e.target.checked })} />
+          </label>
+        </div>
+
+        <div className="desk-field">
           <label className="desk-label" htmlFor="d-kw">Tracking words</label>
           <div className="desk-tags">
             {draft.keywords.map((k) => (
@@ -919,6 +948,8 @@ function ItemView({ api, id, items, reload, back, toast }: {
           </section>
         )}
 
+        {!it.hidden && <BreakingSend api={api} articleId={it.id} category={it.category} toast={toast} />}
+
         {err && <div className="desk-notice desk-notice--bad" role="alert">{err}</div>}
 
         <section className="desk-section">
@@ -939,11 +970,276 @@ function ItemView({ api, id, items, reload, back, toast }: {
   );
 }
 
+// ── push ────────────────────────────────────────────────────────────────────
+// Design review DR-8A / DR-16A: Breaking shows exactly what phones will show,
+// is editable, recounts at send, and needs SEND typed. Going live needs a
+// confirm; turning push off is instant.
+
+const HELD_LABEL: Record<string, string> = {
+  quiet: "Held: quiet hours (their time)",
+  cap_day: "Held: already had Breaking today",
+  cap_week: "Held: two Breaking pushes this week",
+  gap: "Held: got a push under 90 minutes ago",
+  dup: "Held: already got this story",
+  off: "Breaking turned off",
+};
+const SLOT_LABEL: Record<string, string> = { sunrise: "Sunrise", noon: "High Noon", dusk: "Dusk", breaking: "Breaking" };
+
+function NotifPreview({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="desk-notif" aria-label="How the notification looks on Android">
+      <p className="desk-notif__head"><Surya size={12} /> Chintan · now</p>
+      <p className="desk-notif__title">{title}</p>
+      <p className="desk-notif__body">{body || " "}</p>
+    </div>
+  );
+}
+
+function HeldLines({ held }: { held: Record<string, number> }) {
+  const rows = Object.entries(held || {}).filter(([, n]) => n > 0);
+  return <>{rows.map(([k, n]) => (
+    <p className="desk-kv" key={k}><span>{HELD_LABEL[k] || k}</span><span>{n}</span></p>
+  ))}</>;
+}
+
+function BreakingSend({ api, articleId, category, toast }: {
+  api: ReturnType<typeof useApi>; articleId: string; category: string; toast: (m: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [preview, setPreview] = useState<BreakingPreview | null>(null);
+  const [text, setText] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState<"" | "count" | "send">("");
+  const [receipt, setReceipt] = useState<BreakingReceipt | null>(null);
+  const [err, setErr] = useState("");
+
+  async function load() {
+    setErr(""); setBusy("count");
+    try {
+      const p = await api<BreakingPreview>("POST", "push/breaking/preview", { article_id: articleId });
+      setPreview(p); setText(p.body);
+    } catch (e) {
+      if ((e as HttpError).status !== 401) setErr((e as Error).message);
+    } finally { setBusy(""); }
+  }
+
+  async function send() {
+    setErr(""); setBusy("send");
+    try {
+      const r = await api<BreakingReceipt>("POST", "push/breaking/send", { article_id: articleId, text, confirm });
+      setReceipt(r);
+      toast(`Sent to ${r.sent} reader${r.sent === 1 ? "" : "s"}.`);
+    } catch (e) {
+      if ((e as HttpError).status !== 401) setErr((e as Error).message);
+      setConfirm("");
+    } finally { setBusy(""); }
+  }
+
+  if (receipt) {
+    const held = Object.values(receipt.held || {}).reduce((a, b) => a + b, 0);
+    return (
+      <section className="desk-section" aria-labelledby="bk-title">
+        <h2 className="desk-section__title" id="bk-title">Breaking push</h2>
+        <div className="desk-livecard">
+          <p className="desk-livecard__line"><span className="desk-dot desk-dot--live" />Sent to {receipt.sent} reader{receipt.sent === 1 ? "" : "s"}</p>
+          <p className="desk-livecard__sub">{receipt.failed} failed · {held} held</p>
+          <a className="desk-link" href="#push">Open the Push panel</a>
+        </div>
+      </section>
+    );
+  }
+
+  if (!open) {
+    return (
+      <section className="desk-section">
+        <button className="desk-btn desk-btn--block" type="button" onClick={() => { setOpen(true); load(); }}>Send as Breaking push…</button>
+        <p className="desk-hint">Interrupts phones. Readers get at most one Breaking push a day.</p>
+      </section>
+    );
+  }
+
+  const r = preview?.reach;
+  const tooLong = text.length > 110;
+  const canSend = !!preview && !!r && r.live && r.readers > 0 && !preview.already_sent && !tooLong
+    && text.trim().length > 0 && confirm === "SEND" && !busy;
+
+  return (
+    <section className="desk-section desk-breaking" aria-labelledby="bk-title">
+      <p className="desk-kicker">Push · Breaking</p>
+      <h2 className="desk-page-title" id="bk-title" style={{ fontSize: "var(--fs-lead)" }}>Send this as a Breaking push?</h2>
+      {!preview && busy === "count" && <p className="desk-hint" aria-live="polite">Counting readers…</p>}
+      {err && <div className="desk-notice desk-notice--bad" role="alert">{err}</div>}
+      {preview && r && (
+        <>
+          <NotifPreview title={preview.title} body={text} />
+          {preview.already_sent ? (
+            <p className="desk-hint">This story was already sent as Breaking.</p>
+          ) : (
+            <>
+              <label className="desk-label" htmlFor="bk-text" style={{ marginTop: 14 }}>Notification text (plain: no emoji, no exclamation marks)</label>
+              <input id="bk-text" className="desk-input" value={text} maxLength={140} onChange={(e) => setText(e.target.value)} aria-describedby="bk-count" />
+              <p id="bk-count" className={`desk-count${tooLong ? " is-over" : ""}`}>{text.length} / 110</p>
+
+              <p className="desk-kv"><span>Will reach now</span><span>{r.readers} reader{r.readers === 1 ? "" : "s"} · {r.devices} device{r.devices === 1 ? "" : "s"}</span></p>
+              <p className="desk-kv"><span>Audience</span><span>{preview.national ? "Every reader" : `Readers who follow ${category}`}</span></p>
+              <HeldLines held={r.held} />
+
+              {!r.live && <div className="desk-notice desk-notice--warn" style={{ marginTop: 12 }}><strong>Push is switched off.</strong> Turn it on in the Push panel first.</div>}
+              {r.live && r.readers === 0 && <div className="desk-notice" style={{ marginTop: 12 }}>No one to reach right now.</div>}
+
+              <label className="desk-label" htmlFor="bk-confirm" style={{ marginTop: 14 }}>This can&apos;t be recalled. Type SEND to confirm.</label>
+              <input id="bk-confirm" className="desk-input desk-input--mono" value={confirm} autoComplete="off" spellCheck={false}
+                onChange={(e) => setConfirm(e.target.value.toUpperCase())} />
+              <div className="desk-row-actions">
+                <button className="desk-btn" type="button" onClick={() => { setOpen(false); setConfirm(""); }}>Cancel</button>
+                <button className="desk-btn desk-btn--primary" type="button" disabled={!canSend} onClick={send}>
+                  {busy === "send" ? <><Spinner /> Sending</> : `Send to ${r.readers} reader${r.readers === 1 ? "" : "s"}`}
+                </button>
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+function PushView({ api, back, toast }: { api: ReturnType<typeof useApi>; back: () => void; toast: (m: string) => void }) {
+  const [panel, setPanel] = useState<PushPanel | null>(null);
+  const [err, setErr] = useState("");
+  const [armed, setArmed] = useState(false);
+  const [busy, setBusy] = useState<"" | "on" | "off" | "test">("");
+  const [test, setTest] = useState<{ ok: boolean; error?: string; devices?: { platform: string; result: string }[] } | null>(null);
+
+  const load = useCallback(async () => {
+    setErr("");
+    try { setPanel(await api<PushPanel>("GET", "push")); }
+    catch (e) { if ((e as HttpError).status !== 401) setErr((e as Error).message); }
+  }, [api]);
+  useEffect(() => { load(); }, [load]);
+
+  async function setEnabled(enabled: boolean) {
+    setBusy(enabled ? "on" : "off"); setErr("");
+    try {
+      await api("POST", "push/enabled", { enabled, confirm: enabled });
+      await load();
+      toast(enabled ? "Push is on. The next slot will send." : "Push is off. Nothing more will send.");
+    } catch (e) { if ((e as HttpError).status !== 401) setErr((e as Error).message); }
+    finally { setBusy(""); setArmed(false); }
+  }
+
+  async function sendTest() {
+    setBusy("test"); setTest(null);
+    try { setTest(await api("POST", "push/test")); }
+    catch (e) { if ((e as HttpError).status !== 401) setErr((e as Error).message); }
+    finally { setBusy(""); }
+  }
+
+  const bar = (
+    <header className="desk-bar"><div className="desk-bar__inner">
+      <button className="desk-back" type="button" onClick={back}><Chevron dir="left" /> Desk</button>
+    </div></header>
+  );
+  if (!panel) {
+    return <>{bar}<main className="desk-shell desk-view">
+      {err ? <div className="desk-notice desk-notice--bad" role="alert">{err} <button className="desk-btn desk-btn--quiet" type="button" onClick={load}>Try again</button></div>
+        : <p className="desk-empty">Loading…</p>}
+    </main></>;
+  }
+
+  const st = panel.state;
+  const on = st.enabled && st.env_enabled;
+  const rows = (["sunrise", "noon", "dusk", "breaking"] as const).map((k) => [k, panel.rows[k] || { sent: 0, tapped: 0, skipped: 0 }] as const);
+  const nothingYet = rows.every(([, r]) => r.sent + r.skipped === 0);
+  const ns = panel.next_slot;
+
+  return (
+    <>{bar}
+      <main className="desk-shell desk-draft desk-view">
+        <p className="desk-kicker">Push</p>
+        <div className="desk-titlerow">
+          <h1 className="desk-page-title">Push notifications</h1>
+          <span className={`desk-pill${on ? " is-on" : ""}`}><span className={`desk-dot${on ? " desk-dot--live" : ""}`} /> {on ? "On" : "Off"}</span>
+        </div>
+        <p className="desk-hint" style={{ marginTop: 0 }}>{panel.readers} reader{panel.readers === 1 ? "" : "s"} · {panel.devices} device{panel.devices === 1 ? "" : "s"} with notifications on</p>
+
+        {err && <div className="desk-notice desk-notice--bad" role="alert">{err}</div>}
+        {panel.errors.length > 0 && (
+          <div className="desk-notice desk-notice--bad" role="alert">
+            <strong>Last delivery error:</strong> {panel.errors[0].detail || panel.errors[0].error} · {ago(panel.errors[0].sent_at)}
+          </div>
+        )}
+
+        <section className="desk-section">
+          {!st.env_enabled ? (
+            <>
+              <button className="desk-btn desk-btn--block" type="button" disabled>Turn push on…</button>
+              <p className="desk-hint">{st.env_reason || "Forced off by a server setting."}</p>
+            </>
+          ) : on ? (
+            <>
+              <button className="desk-btn desk-btn--danger desk-btn--block" type="button" disabled={!!busy} onClick={() => setEnabled(false)}>
+                {busy === "off" ? <Spinner /> : "Turn push off"}
+              </button>
+              <p className="desk-hint">Stops every scheduled and Breaking push from the next minute. Instant, no confirm.</p>
+            </>
+          ) : armed ? (
+            <div className="desk-livecard">
+              <p className="desk-livecard__line">Turn push on?</p>
+              <p className="desk-livecard__sub">{ns ? `Next slot: ${ns.slot} at ${ns.local_time} (${ns.tz}), ${ns.readers} reader${ns.readers === 1 ? "" : "s"}.` : "No readers have notifications on yet."}</p>
+              <div className="desk-livecard__actions">
+                <button className="desk-btn" type="button" onClick={() => setArmed(false)}>Cancel</button>
+                <button className="desk-btn desk-btn--primary" type="button" disabled={!!busy} onClick={() => setEnabled(true)}>
+                  {busy === "on" ? <Spinner /> : "Turn on"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <button className="desk-btn desk-btn--primary desk-btn--block" type="button" onClick={() => setArmed(true)}>Turn push on…</button>
+              <p className="desk-hint">Turn it on once your test push arrives. Turning it on asks you to confirm.</p>
+            </>
+          )}
+        </section>
+
+        <section className="desk-section" aria-labelledby="test-title">
+          <h2 className="desk-section__title" id="test-title">Test push</h2>
+          <button className="desk-btn desk-btn--block" type="button" disabled={!!busy || !panel.test_email_set} onClick={sendTest}>
+            {busy === "test" ? <><Spinner /> Sending</> : "Send a test push to my devices"}
+          </button>
+          <p className="desk-hint">{panel.test_email_set ? "Works even while push is off." : "Set PUSH_TEST_USER_EMAIL on Railway to the app account you test with."}</p>
+          {test && (test.devices && test.devices.length > 0 ? (
+            <ul className="desk-list" style={{ marginTop: 10 }}>
+              {test.devices.map((d, i) => (
+                <li key={i}><p className="desk-kv"><span>{d.platform === "ios" ? "iPhone" : "Android"}</span><span>{d.result}</span></p></li>
+              ))}
+            </ul>
+          ) : <div className="desk-notice desk-notice--bad" role="alert" style={{ marginTop: 10 }}>{test.error}</div>)}
+        </section>
+
+        <section className="desk-section" aria-labelledby="stats-title">
+          <h2 className="desk-section__title" id="stats-title">Last 7 days</h2>
+          <table className="desk-table">
+            <thead><tr><th scope="col">Slot</th><th scope="col">Sent</th><th scope="col">Tapped</th><th scope="col">Skipped</th></tr></thead>
+            <tbody>
+              {rows.map(([k, r]) => (
+                <tr key={k}><th scope="row">{SLOT_LABEL[k]}</th><td>{r.sent || "—"}</td><td>{r.tapped || "—"}</td><td>{k === "breaking" ? "" : r.skipped || "—"}</td></tr>
+              ))}
+            </tbody>
+          </table>
+          {nothingYet && <p className="desk-hint">Nothing sent yet.</p>}
+        </section>
+      </main>
+    </>
+  );
+}
+
 // ── app ─────────────────────────────────────────────────────────────────────
 function parseHash(): View {
   if (typeof window === "undefined") return { name: "home" };
   const [kind, id] = window.location.hash.replace(/^#/, "").split("/");
   if ((kind === "draft" || kind === "item") && id && /^[A-Za-z0-9_-]{1,120}$/.test(id)) return { name: kind, id };
+  if (kind === "push") return { name: "push" };
   return { name: "home" };
 }
 
@@ -1003,7 +1299,7 @@ export default function DeskApp() {
   }, [auth, reload]);
 
   function open(v: View) {
-    window.location.hash = v.name === "home" ? "" : `${v.name}/${v.id}`;
+    window.location.hash = v.name === "home" ? "" : v.name === "push" ? "push" : `${v.name}/${v.id}`;
     setView(v);
     window.scrollTo({ top: 0 });
   }
@@ -1032,7 +1328,10 @@ export default function DeskApp() {
       {view.name === "home" && (
         <header className="desk-bar"><div className="desk-bar__inner">
           <span className="desk-brand"><Surya size={20} />Desk</span>
-          <button className="desk-btn desk-btn--quiet" type="button" onClick={signOut} title={email}>Sign out</button>
+          <span style={{ display: "flex", gap: 4 }}>
+            <button className="desk-btn desk-btn--quiet" type="button" onClick={() => open({ name: "push" })}>Push</button>
+            <button className="desk-btn desk-btn--quiet" type="button" onClick={signOut} title={email}>Sign out</button>
+          </span>
         </div></header>
       )}
       {alertFailed && view.name === "home" && (
@@ -1049,6 +1348,7 @@ export default function DeskApp() {
           onReplaced={(draftId) => { reload(); open({ name: "draft", id: draftId }); }} />
       )}
       {view.name === "item" && <ItemView api={api} id={view.id} items={items} reload={reload} back={() => open({ name: "home" })} toast={toast} />}
+      {view.name === "push" && <PushView api={api} back={() => open({ name: "home" })} toast={toast} />}
       {toastMsg && <div className="desk-toast" role="status">{toastMsg}</div>}
     </>
   );

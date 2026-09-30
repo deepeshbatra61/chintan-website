@@ -32,6 +32,9 @@ const ALLOWED: Array<[string, RegExp]> = [
   ["POST", new RegExp(`^stories/${ID}/(end|extend)$`)],
   ["POST", new RegExp(`^articles/${ID}/unpublish$`)],
   ["POST", new RegExp(`^articles/${ID}/restore/${ID}$`)],
+  ["GET", new RegExp(`^push$`)],
+  ["POST", new RegExp(`^push/(enabled|test)$`)],
+  ["POST", new RegExp(`^push/breaking/(preview|send)$`)],
 ];
 
 export function isAllowed(method: string, path: string): boolean {
