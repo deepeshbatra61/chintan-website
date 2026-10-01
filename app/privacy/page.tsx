@@ -14,7 +14,7 @@ export default function PrivacyPage() {
       <main className="legal-page">
         <span className="eyebrow">Legal</span>
         <h1>Privacy Policy</h1>
-        <p className="updated">Last updated: 19 July 2026</p>
+        <p className="updated">Last updated: 1 October 2026</p>
 
         <p>
           This policy explains what information Chintan (&ldquo;we&rdquo;, &ldquo;us&rdquo;)
@@ -38,6 +38,17 @@ export default function PrivacyPage() {
             your briefs and feed.
           </li>
           <li>
+            <strong>Reading activity:</strong> which stories and briefs you open, so Chintan can
+            shape your feed and skip a brief notification you&apos;ve already read.
+          </li>
+          <li>
+            <strong>Notifications (only if you turn them on):</strong> a device token issued by
+            Google Firebase Cloud Messaging (and, on iPhone, Apple&apos;s push service), your
+            device&apos;s time zone, your notification choices (Sunrise, High Noon, Dusk, Breaking),
+            and whether each notification was delivered and opened. If you use the app without an
+            account, the token is linked to your device only.
+          </li>
+          <li>
             <strong>Usage and device data:</strong> basic technical information (app version,
             device type, crash logs) used to keep the app working and to fix bugs.
           </li>
@@ -49,19 +60,35 @@ export default function PrivacyPage() {
           <li>To show you the briefs, stories, and interests you&apos;ve chosen.</li>
           <li>To sync your bookmarks, comments, and poll history across devices.</li>
           <li>To power Ask Chintan&apos;s in-context answers to your questions.</li>
+          <li>
+            To send the notifications you asked for, at your local time, and to see which ones
+            are useful (opened) so we can improve them. Notification text may be drafted by an AI model from the day&apos;s
+            stories.
+          </li>
           <li>To diagnose and fix bugs, and to understand aggregate (non-identifying) usage.</li>
         </ul>
         <p>We do not sell your personal data, and we do not use it to serve third-party ads.</p>
 
         <h2>3. Third-party services</h2>
         <p>
-          We use third-party infrastructure providers (for example, cloud hosting and AI model
-          providers) to operate Chintan. These providers process data only as necessary to
+          We use third-party infrastructure providers (for example, cloud hosting, AI model
+          providers, and Google Firebase Cloud Messaging and Apple Push Notification service for
+          notifications) to operate Chintan. These providers process data only as necessary to
           deliver the service to you, under their own security and confidentiality obligations to
           us.
         </p>
 
-        <h2>4. Data retention</h2>
+        <h2>4. Notifications and your choices</h2>
+        <p>
+          Chintan never asks for notification permission when you first open the app. You can turn
+          each type on or off in the app under Notifications, or turn them all off in your
+          phone&apos;s settings. Signing out unlinks your device from your account (if
+          notifications stay on, it may still receive rare national Breaking alerts until you turn
+          them off); deleting your account removes your tokens, choices and notification history. Notification
+          delivery records are kept for up to 90 days.
+        </p>
+
+        <h2>5. Data retention</h2>
         <p>
           We retain your account data for as long as your account is active. If you delete your
           account, we delete your personal data within a reasonable period, except where we are
@@ -72,7 +99,7 @@ export default function PrivacyPage() {
           for how to request this.
         </p>
 
-        <h2>5. Your rights</h2>
+        <h2>6. Your rights</h2>
         <p>
           You can access, correct, export, or delete your data at any time from within the app, or
           by contacting us (see{" "}
@@ -82,16 +109,16 @@ export default function PrivacyPage() {
           ).
         </p>
 
-        <h2>6. Children</h2>
+        <h2>7. Children</h2>
         <p>Chintan is not directed at children under 13, and we do not knowingly collect data from them.</p>
 
-        <h2>7. Changes to this policy</h2>
+        <h2>8. Changes to this policy</h2>
         <p>
           We&apos;ll update this page if our practices change, and update the &ldquo;last
           updated&rdquo; date above.
         </p>
 
-        <h2>8. Contact</h2>
+        <h2>9. Contact</h2>
         <p>
           Questions about this policy? Reach us via the{" "}
           <a className="inline-link" href="/contact">
