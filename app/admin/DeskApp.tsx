@@ -32,7 +32,8 @@ type LiveItem = {
   hidden: boolean; single_source: boolean; pinned: boolean;
   absorbed: { article_id: string; title: string; source: string }[]; story: Story | null;
 };
-type Items = { drafts: Draft[]; published: LiveItem[] };
+type Boosted = { type: "article" | "story"; id: string; title: string; heat: Heat | null; boosted_at: string; visible: boolean };
+type Items = { drafts: Draft[]; published: LiveItem[]; boosted?: Boosted[] };
 type View = { name: "home" } | { name: "draft"; id: string } | { name: "item"; id: string } | { name: "push" };
 type PushRow = { sent: number; tapped: number; skipped: number };
 type PushPanel = {
@@ -371,7 +372,7 @@ function Composer({
     setBoosting(m.id);
     try {
       await api("POST", "boost", { type: m.type, id: m.id, heat });
-      toast(`Boosted to ${HEAT_LABEL[heat]}. It'll move up in the feed now.`);
+      toast(`Boosted to ${HEAT_LABEL[heat]}. You'll find it under "Boosted this week".`);
       setTopic(""); setMatches(null); setHeat(1);
     } catch (e) {
       if ((e as HttpError).status !== 401) setErr((e as Error).message);
@@ -404,7 +405,9 @@ function Composer({
         <div className="desk-matches" role="region" aria-label="Existing coverage">
           <div className="desk-matches__head">
             <h2>Chintan may already have this</h2>
-            <p className="desk-hint">Boost it rather than adding a second copy, or research it as a new story if it's different.</p>
+            <p className="desk-hint">{newsType === "developing"
+              ? "Start it as a developing story: the coverage below folds into it as updates the moment you publish. Boosting only lifts one existing item and doesn't create a developing story."
+              : "Boost it rather than adding a second copy, or research it as a new story if it's different."}</p>
           </div>
           {matches.map((m) => (
             <div className="desk-match" key={`${m.type}:${m.id}`}>
@@ -412,14 +415,14 @@ function Composer({
                 <p className="desk-match__title">{m.title}</p>
                 <p className="desk-match__meta">{m.type === "story" ? "Developing · " : ""}{m.detail}</p>
               </div>
-              <button className="desk-btn" type="button" disabled={heat === 1 || boosting !== null} onClick={() => boost(m)}>
+              <button className={`desk-btn${newsType === "developing" ? " desk-btn--quiet" : ""}`} type="button" disabled={heat === 1 || boosting !== null} onClick={() => boost(m)}>
                 {boosting === m.id ? <><Spinner /> Boosting</> : heat === 1 ? "Pick a heat above Normal to boost" : <>Boost to {HEAT_LABEL[heat]}</>}
               </button>
             </div>
           ))}
           <div className="desk-matches__foot">
             <button className="desk-btn desk-btn--primary" type="button" disabled={busy} onClick={() => go(true)}>
-              {busy ? <><Spinner /> Starting</> : "It's a different story, research it"}
+              {busy ? <><Spinner /> Starting</> : newsType === "developing" ? "Start a developing story" : "It's a different story, research it"}
             </button>
             <button className="desk-btn desk-btn--quiet" type="button" onClick={() => setMatches(null)}>Cancel</button>
           </div>
@@ -485,6 +488,29 @@ function Home({ api, items, reload, open, toast }: {
             ))}
         </ul>
       </section>
+
+      {items?.boosted && items.boosted.length > 0 && (
+        <section className="desk-section" aria-labelledby="boost-title">
+          <h2 className="desk-section__title" id="boost-title">
+            Boosted this week <span className="count">{items.boosted.length}</span>
+          </h2>
+          <ul className="desk-list">
+            {items.boosted.map((b) => (
+              <li key={`${b.type}:${b.id}`}>
+                <div className="desk-row" style={{ cursor: "default" }}>
+                  <span>
+                    <p className="desk-row__title">{b.title}</p>
+                    <p className="desk-row__meta">
+                      {b.type === "story" ? "Developing topic" : "Article"} · {HEAT_LABEL[b.heat || 1]} · boosted {ago(b.boosted_at)}
+                      {b.visible ? "" : " · not visible in the app"}
+                    </p>
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="desk-section" aria-labelledby="live-title">
         <h2 className="desk-section__title" id="live-title">
