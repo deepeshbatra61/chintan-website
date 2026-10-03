@@ -1,0 +1,13 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "6563BPR9FG.com.chintan.app",
+        "appIDs": ["6563BPR9FG.com.chintan.app"],
+        "paths": ["/article/*"],
+        "components": [{ "/": "/article/*", "comment": "Shared stories open in the app" }]
+      }
+    ]
+  }
+}

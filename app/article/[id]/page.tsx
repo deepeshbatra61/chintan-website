@@ -106,6 +106,7 @@ export default async function SharedArticlePage({
       <Nav />
       <main className="shared-article">
         <span className="eyebrow">Shared with you</span>
+        <OpenInApp articleId={article.article_id} compact />
 
         <h1>{article.title}</h1>
 

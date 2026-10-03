@@ -416,6 +416,10 @@ footer .copy { color: var(--dim); font-family: var(--mono); font-size: 10.5px; }
   transition: background-color 0.2s var(--ease-out-quart);
 }
 .shared-article__cta-primary:hover { background: #b91c1c; }
+.shared-article__open-top {
+  display: inline-flex; align-items: center; min-height: 44px; margin: 4px 0 6px;
+  font-size: 14px; font-weight: 600; color: #dc2626; text-decoration: none;
+}
 .shared-article__cta-note {
   font-family: var(--sans);
   font-size: 13.5px;

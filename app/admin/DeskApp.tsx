@@ -1547,7 +1547,8 @@ function EventView({ api, id, back, open, toast }: {
 type GoldenSide = { article_id: string; title: string; description?: string; publisher_name?: string; published_at: string };
 type GoldenPair = { pair_id: string; kind: "grouped" | "near_miss"; engine_same: boolean; a: GoldenSide; b: GoldenSide };
 type GoldenSummary = { labelled: number; agree: number; merge_precision: number | null; merge_recall: number | null;
-  gate: { precision: number; recall: number } };
+  gate: { precision: number; recall: number };
+  sweep?: { current: number; pairs: number; rows: { t: number; precision: number | null; recall: number | null }[] } };
 
 function pct(x: number | null): string {
   return x === null ? "—" : `${Math.round(x * 100)}%`;
@@ -1638,6 +1639,35 @@ function GoldenView({ api, back }: { api: ReturnType<typeof useApi>; back: () =>
               </tbody>
             </table>
             <p className="desk-hint">{summary.labelled < 40 ? `Check at least 40 pairs before deciding.` : passed ? "Meets the bar." : "Not there yet: the matching needs tuning before it goes live."}</p>
+          </section>
+        )}
+        {summary?.sweep && summary.sweep.pairs > 0 && (
+          <section className="desk-section" aria-labelledby="golden-sweep">
+            <h2 className="desk-section__title" id="golden-sweep">How strict should matching be?</h2>
+            <p className="desk-hint">
+              Your {summary.sweep.pairs} answers, replayed at different strictness levels. Lower catches more real
+              matches but groups more stories wrongly. Today: {summary.sweep.current.toFixed(2)}. Rows that meet both
+              bars are marked.
+            </p>
+            <table className="desk-table">
+              <thead>
+                <tr><th scope="col">Strictness</th><th scope="col">&ldquo;Same story&rdquo; right</th><th scope="col">Matches caught</th></tr>
+              </thead>
+              <tbody>
+                {summary.sweep.rows.map((r) => {
+                  const ok = r.precision !== null && r.recall !== null
+                    && r.precision >= summary.gate.precision && r.recall >= summary.gate.recall;
+                  const now = Math.abs(r.t - summary.sweep!.current) < 1e-9;
+                  return (
+                    <tr key={r.t} style={now ? { fontWeight: 700 } : undefined}>
+                      <th scope="row">{r.t.toFixed(2)}{now ? " (today)" : ""}{ok ? " ✓" : ""}</th>
+                      <td>{pct(r.precision)}</td>
+                      <td>{pct(r.recall)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </section>
         )}
       </main>
