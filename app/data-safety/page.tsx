@@ -15,7 +15,7 @@ export default function DataSafetyPage() {
       <main className="legal-page">
         <span className="eyebrow">Legal</span>
         <h1>Data Safety &amp; Account Deletion</h1>
-        <p className="updated">Last updated: 1 October 2026</p>
+        <p className="updated">Last updated: 3 October 2026</p>
 
         <p>
           This page is a plain-language summary of what Chintan collects and how to delete your
@@ -33,8 +33,8 @@ export default function DataSafetyPage() {
           <li><strong>Saved articles / bookmarks</strong> — so you can find them again across sessions and devices.</li>
           <li><strong>Comments</strong> — the text you post on story discussions.</li>
           <li><strong>Poll votes</strong> — which option you selected on story polls.</li>
-          <li><strong>Interests</strong> — the topics you choose, used to personalize your feed and briefs.</li>
-          <li><strong>Reading activity</strong> — stories and briefs you open, to personalize your feed and avoid repeat notifications.</li>
+          <li><strong>Interests</strong> — the topics you choose (and, if you pick one, your home state), used to personalize your feed and briefs.</li>
+          <li><strong>Reading activity</strong> — stories and briefs you open, the developing stories you follow, and when you last looked at them, to personalize your feed, mark what&apos;s new, and avoid repeat notifications.</li>
           <li><strong>Notification token and choices</strong> (optional, only if you turn notifications on) — a device ID from Google Firebase / Apple, your time zone, which notifications you want, and whether each was opened.</li>
           <li><strong>Basic device/crash data</strong> — to keep the app stable.</li>
         </ul>
@@ -43,8 +43,8 @@ export default function DataSafetyPage() {
         <h2>Delete your account and data</h2>
         <p>
           Enter your account email and password below to permanently delete your account,
-          bookmarks, comments, poll history, interests, reading history, and notification tokens and
-          history. This works right here — no app or
+          bookmarks, comments, poll history, interests, reading history, followed stories, and
+          notification tokens and history. This works right here — no app or
           sign-in required — and takes effect immediately.
         </p>
 

@@ -14,7 +14,7 @@ export default function PrivacyPage() {
       <main className="legal-page">
         <span className="eyebrow">Legal</span>
         <h1>Privacy Policy</h1>
-        <p className="updated">Last updated: 1 October 2026</p>
+        <p className="updated">Last updated: 3 October 2026</p>
 
         <p>
           This policy explains what information Chintan (&ldquo;we&rdquo;, &ldquo;us&rdquo;)
@@ -34,17 +34,19 @@ export default function PrivacyPage() {
             votes you cast in polls, and follow-up questions you ask Ask Chintan.
           </li>
           <li>
-            <strong>Preferences:</strong> the topics and interests you select, used to personalize
-            your briefs and feed.
+            <strong>Preferences:</strong> the topics and interests you select, and the state whose
+            news you want first if you pick one, used to personalize your briefs and feed.
           </li>
           <li>
             <strong>Reading activity:</strong> which stories and briefs you open, so Chintan can
-            shape your feed and skip a brief notification you&apos;ve already read.
+            shape your feed and skip a brief notification you&apos;ve already read. If you follow a
+            developing story, we keep that you follow it and when you last looked at it, so we can
+            mark what&apos;s new and, if you turn notifications on, tell you when it moves.
           </li>
           <li>
             <strong>Notifications (only if you turn them on):</strong> a device token issued by
             Google Firebase Cloud Messaging (and, on iPhone, Apple&apos;s push service), your
-            device&apos;s time zone, your notification choices (Sunrise, High Noon, Dusk, Breaking),
+            device&apos;s time zone, your notification choices (Sunrise, High Noon, Dusk, Breaking, stories you follow),
             and whether each notification was delivered and opened. If you use the app without an
             account, the token is linked to your device only.
           </li>
