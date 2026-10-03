@@ -39,6 +39,8 @@ const ALLOWED: Array<[string, RegExp]> = [
   ["GET", new RegExp(`^events/${ID}$`)],
   ["POST", new RegExp(`^events/${ID}/(promote|hide|merge|split)$`)],
   ["POST", new RegExp(`^events/${ID}/remove/${ID}$`)],
+  ["GET", new RegExp(`^golden/pairs$`)],
+  ["POST", new RegExp(`^golden/labels$`)],
 ];
 
 export function isAllowed(method: string, path: string): boolean {

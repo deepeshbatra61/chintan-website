@@ -35,7 +35,7 @@ type LiveItem = {
 type Boosted = { type: "article" | "story"; id: string; title: string; heat: Heat | null; boosted_at: string; visible: boolean };
 type Items = { drafts: Draft[]; published: LiveItem[]; boosted?: Boosted[] };
 type View = { name: "home" } | { name: "draft"; id: string } | { name: "item"; id: string } | { name: "push" }
-  | { name: "newsroom" } | { name: "event"; id: string };
+  | { name: "newsroom" } | { name: "event"; id: string } | { name: "golden" };
 type EventBrief = {
   event_id: string; title: string; status: string; size: number; outlets_count: number;
   coverage_mix: Record<string, number>; category: string | null; last_member_at: string | null;
@@ -1352,6 +1352,11 @@ function NewsroomView({ api, back, open }: {
           {data?.mode === "live" ? "Readers see one card per event and this Developing list."
             : "Shadow: events are grouped here for you only. The app hasn’t changed."}
         </p>
+        {data?.mode !== "live" && (
+          <button className="desk-btn desk-btn--block" type="button" style={{ marginBottom: 12 }} onClick={() => open({ name: "golden" })}>
+            Check groupings: same story or not?
+          </button>
+        )}
         {data?.alarm && (
           <div className="desk-notice desk-notice--bad" role="alert">
             <strong>Developing alarm:</strong> too many stories are marked Developing. The app is showing only the 15 most active.
@@ -1538,6 +1543,108 @@ function EventView({ api, id, back, open, toast }: {
   );
 }
 
+// ── check groupings (golden set spot-check; eng review 3A / OV5) ─────────────
+type GoldenSide = { article_id: string; title: string; description?: string; publisher_name?: string; published_at: string };
+type GoldenPair = { pair_id: string; kind: "grouped" | "near_miss"; engine_same: boolean; a: GoldenSide; b: GoldenSide };
+type GoldenSummary = { labelled: number; agree: number; merge_precision: number | null; merge_recall: number | null;
+  gate: { precision: number; recall: number } };
+
+function pct(x: number | null): string {
+  return x === null ? "—" : `${Math.round(x * 100)}%`;
+}
+
+function GoldenView({ api, back }: { api: ReturnType<typeof useApi>; back: () => void }) {
+  const [pairs, setPairs] = useState<GoldenPair[] | null>(null);
+  const [summary, setSummary] = useState<GoldenSummary | null>(null);
+  const [i, setI] = useState(0);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await api<{ pairs: GoldenPair[]; summary: GoldenSummary }>("GET", "golden/pairs");
+      setPairs(r.pairs); setSummary(r.summary); setI(0); setErr("");
+    } catch (e) { if ((e as HttpError).status !== 401) setErr((e as Error).message); }
+  }, [api]);
+  useEffect(() => { load(); }, [load]);
+
+  async function answer(same: boolean | null) {
+    if (!pairs) return;
+    const p = pairs[i];
+    if (same !== null) {
+      setBusy(true);
+      try {
+        setSummary(await api<GoldenSummary>("POST", "golden/labels",
+          { pair_id: p.pair_id, a: p.a.article_id, b: p.b.article_id, same, engine_same: p.engine_same }));
+      } catch (e) { if ((e as HttpError).status !== 401) setErr((e as Error).message); setBusy(false); return; }
+      setBusy(false);
+    }
+    setI(i + 1);
+  }
+
+  const side = (s: GoldenSide) => (
+    <div className="desk-livecard" style={{ marginBottom: 10 }}>
+      <p className="desk-livecard__line" style={{ fontFamily: "var(--font-serif, Georgia, serif)" }}>{s.title}</p>
+      {s.description && s.description !== s.title && <p className="desk-livecard__sub">{s.description.slice(0, 220)}</p>}
+      <p className="desk-row__meta" style={{ marginTop: 6 }}>{s.publisher_name || "Unknown outlet"} · {ago(s.published_at)}</p>
+    </div>
+  );
+
+  const passed = summary && summary.merge_precision !== null && summary.merge_recall !== null
+    && summary.merge_precision >= summary.gate.precision && summary.merge_recall >= summary.gate.recall;
+
+  return (
+    <>
+      <header className="desk-bar"><div className="desk-bar__inner">
+        <button className="desk-back" type="button" onClick={back}><Chevron dir="left" /> Newsroom</button>
+      </div></header>
+      <main className="desk-shell desk-draft desk-view">
+        <p className="desk-kicker">Check groupings</p>
+        <h1 className="desk-page-title">Same story?</h1>
+        <p className="desk-hint" style={{ marginTop: 0 }}>
+          Your answers decide whether grouping goes live for readers: it needs {summary ? pct(summary.gate.precision) : "95%"} of
+          its &ldquo;same story&rdquo; calls right and to catch {summary ? pct(summary.gate.recall) : "80%"} of real matches.
+        </p>
+        {err && <div className="desk-notice desk-notice--bad" role="alert">{err}</div>}
+        {!pairs ? <p className="desk-empty">Loading…</p>
+          : i < pairs.length ? (
+            <section className="desk-section" aria-live="polite">
+              <p className="desk-row__meta" style={{ marginBottom: 10 }}>{i + 1} of {pairs.length}</p>
+              {side(pairs[i].a)}
+              {side(pairs[i].b)}
+              <div className="desk-row-actions" style={{ marginTop: 6 }}>
+                <button className="desk-btn desk-btn--primary" type="button" disabled={busy} onClick={() => answer(true)}>Same story</button>
+                <button className="desk-btn" type="button" disabled={busy} onClick={() => answer(false)}>Different stories</button>
+                <button className="desk-btn desk-btn--quiet" type="button" disabled={busy} onClick={() => answer(null)}>Not sure, skip</button>
+              </div>
+              <p className="desk-hint">&ldquo;Same story&rdquo; means one event: the same announcement, match or incident, even from different angles.</p>
+            </section>
+          ) : (
+            <section className="desk-section">
+              <p className="desk-empty" style={{ textAlign: "left" }}>
+                {pairs.length === 0 ? "Nothing new to check right now. Come back after a few more hours of news." : "That's this batch done. Thank you."}
+              </p>
+              <button className="desk-btn desk-btn--block" type="button" onClick={load}>Load more pairs</button>
+            </section>
+          )}
+        {summary && summary.labelled > 0 && (
+          <section className="desk-section" aria-labelledby="golden-score">
+            <h2 className="desk-section__title" id="golden-score">Score so far <span className="count">{summary.labelled}</span></h2>
+            <table className="desk-table">
+              <tbody>
+                <tr><th scope="row">Agrees with you</th><td>{summary.agree} of {summary.labelled}</td></tr>
+                <tr><th scope="row">&ldquo;Same story&rdquo; calls right</th><td>{pct(summary.merge_precision)} (needs {pct(summary.gate.precision)})</td></tr>
+                <tr><th scope="row">Real matches caught</th><td>{pct(summary.merge_recall)} (needs {pct(summary.gate.recall)})</td></tr>
+              </tbody>
+            </table>
+            <p className="desk-hint">{summary.labelled < 40 ? `Check at least 40 pairs before deciding.` : passed ? "Meets the bar." : "Not there yet: the matching needs tuning before it goes live."}</p>
+          </section>
+        )}
+      </main>
+    </>
+  );
+}
+
 // ── app ─────────────────────────────────────────────────────────────────────
 function parseHash(): View {
   if (typeof window === "undefined") return { name: "home" };
@@ -1545,6 +1652,7 @@ function parseHash(): View {
   if ((kind === "draft" || kind === "item" || kind === "event") && id && /^[A-Za-z0-9_-]{1,120}$/.test(id)) return { name: kind, id };
   if (kind === "push") return { name: "push" };
   if (kind === "newsroom") return { name: "newsroom" };
+  if (kind === "golden") return { name: "golden" };
   return { name: "home" };
 }
 
@@ -1604,7 +1712,7 @@ export default function DeskApp() {
   }, [auth, reload]);
 
   function open(v: View) {
-    window.location.hash = v.name === "home" ? "" : v.name === "push" || v.name === "newsroom" ? v.name : `${v.name}/${v.id}`;
+    window.location.hash = v.name === "home" ? "" : v.name === "push" || v.name === "newsroom" || v.name === "golden" ? v.name : `${v.name}/${v.id}`;
     setView(v);
     window.scrollTo({ top: 0 });
   }
@@ -1656,6 +1764,7 @@ export default function DeskApp() {
       {view.name === "item" && <ItemView api={api} id={view.id} items={items} reload={reload} back={() => open({ name: "home" })} toast={toast} />}
       {view.name === "push" && <PushView api={api} back={() => open({ name: "home" })} toast={toast} />}
       {view.name === "newsroom" && <NewsroomView api={api} back={() => open({ name: "home" })} open={open} />}
+      {view.name === "golden" && <GoldenView api={api} back={() => open({ name: "newsroom" })} />}
       {view.name === "event" && <EventView key={view.id} api={api} id={view.id} back={() => open({ name: "newsroom" })} open={open} toast={toast} />}
       {toastMsg && <div className="desk-toast" role="status">{toastMsg}</div>}
     </>
