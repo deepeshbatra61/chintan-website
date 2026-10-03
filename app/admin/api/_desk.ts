@@ -35,6 +35,10 @@ const ALLOWED: Array<[string, RegExp]> = [
   ["GET", new RegExp(`^push$`)],
   ["POST", new RegExp(`^push/(enabled|test)$`)],
   ["POST", new RegExp(`^push/breaking/(preview|send)$`)],
+  ["GET", new RegExp(`^newsroom$`)],
+  ["GET", new RegExp(`^events/${ID}$`)],
+  ["POST", new RegExp(`^events/${ID}/(promote|hide|merge|split)$`)],
+  ["POST", new RegExp(`^events/${ID}/remove/${ID}$`)],
 ];
 
 export function isAllowed(method: string, path: string): boolean {

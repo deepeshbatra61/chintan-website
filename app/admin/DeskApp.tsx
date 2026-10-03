@@ -34,7 +34,26 @@ type LiveItem = {
 };
 type Boosted = { type: "article" | "story"; id: string; title: string; heat: Heat | null; boosted_at: string; visible: boolean };
 type Items = { drafts: Draft[]; published: LiveItem[]; boosted?: Boosted[] };
-type View = { name: "home" } | { name: "draft"; id: string } | { name: "item"; id: string } | { name: "push" };
+type View = { name: "home" } | { name: "draft"; id: string } | { name: "item"; id: string } | { name: "push" }
+  | { name: "newsroom" } | { name: "event"; id: string };
+type EventBrief = {
+  event_id: string; title: string; status: string; size: number; outlets_count: number;
+  coverage_mix: Record<string, number>; category: string | null; last_member_at: string | null;
+  new_last_hour: number; promoted: boolean; hidden: boolean;
+};
+type Newsroom = {
+  mode: "off" | "shadow" | "live"; alarm: boolean; developing_cap: number; developing_open: number;
+  building: EventBrief[]; developing: EventBrief[]; settling: EventBrief[];
+};
+type EventMember = {
+  article_id: string; title: string; publisher_name?: string; publisher_group?: string;
+  published_at: string; syndicated_of?: string | null; origin?: string; url?: string;
+};
+type EventDetail = {
+  event_id: string; status: string; lead_article_id: string; outlets_count?: number;
+  coverage_mix?: Record<string, number>; category_v2?: string; state?: string | null;
+  desk?: { promoted?: boolean; hidden?: boolean; blocked_members?: string[] }; members: EventMember[];
+};
 type PushRow = { sent: number; tapped: number; skipped: number };
 type PushPanel = {
   state: { enabled: boolean; env_enabled: boolean; env_reason: string | null; updated_at: string | null; updated_by: string | null };
@@ -1260,12 +1279,272 @@ function PushView({ api, back, toast }: { api: ReturnType<typeof useApi>; back: 
   );
 }
 
+// ── newsroom (News v2 events; design 7B) ────────────────────────────────────
+const STATUS_LABEL: Record<string, string> = {
+  forming: "Forming", early_report: "Early report", developing: "Developing", settled: "Settling", closed: "Closed",
+};
+function mixLine(mix?: Record<string, number>): string {
+  if (!mix) return "";
+  return (["national", "regional", "wire", "international", "other"] as const)
+    .filter((k) => mix[k]).map((k) => `${mix[k]} ${k}`).join(" · ");
+}
+
+function NewsroomView({ api, back, open }: {
+  api: ReturnType<typeof useApi>; back: () => void; open: (v: View) => void;
+}) {
+  const [data, setData] = useState<Newsroom | null>(null);
+  const [err, setErr] = useState("");
+  const load = useCallback(async () => {
+    try { setData(await api<Newsroom>("GET", "newsroom")); setErr(""); }
+    catch (e) { if ((e as HttpError).status !== 401) setErr((e as Error).message); }
+  }, [api]);
+  useEffect(() => {
+    load();
+    const t = window.setInterval(() => { if (document.visibilityState === "visible") load(); }, 30000);
+    return () => window.clearInterval(t);
+  }, [load]);
+
+  const section = (key: "building" | "developing" | "settling", title: string, empty: string) => (
+    <section className="desk-section" aria-labelledby={`nr-${key}`}>
+      <h2 className="desk-section__title" id={`nr-${key}`}>
+        {title} {data && <span className="count">{key === "developing" ? `${data.developing_open}/${data.developing_cap}` : data[key].length}</span>}
+      </h2>
+      <ul className="desk-list">
+        {!data ? <li className="desk-empty">Loading…</li>
+          : data[key].length === 0 ? <li className="desk-empty">{empty}</li>
+          : data[key].map((ev) => (
+            <li key={ev.event_id}>
+              <button className="desk-row" type="button" onClick={() => open({ name: "event", id: ev.event_id })}>
+                <span>
+                  <p className="desk-row__title">{ev.title}</p>
+                  <p className="desk-row__meta">
+                    {ev.outlets_count} outlet{ev.outlets_count === 1 ? "" : "s"}
+                    {ev.new_last_hour > 0 ? ` · +${ev.new_last_hour} in 1h` : ""}
+                    {ev.category ? ` · ${ev.category}` : ""}
+                    {ev.last_member_at ? ` · ${ago(ev.last_member_at)}` : ""}
+                    {ev.promoted ? " · promoted" : ""}{ev.hidden ? " · hidden" : ""}
+                  </p>
+                </span>
+                <span className="desk-row__chev"><Chevron /></span>
+              </button>
+            </li>
+          ))}
+      </ul>
+    </section>
+  );
+
+  return (
+    <>
+      <header className="desk-bar"><div className="desk-bar__inner">
+        <button className="desk-back" type="button" onClick={back}><Chevron dir="left" /> Desk</button>
+      </div></header>
+      <main className="desk-shell desk-view">
+        <p className="desk-kicker">Newsroom</p>
+        <div className="desk-titlerow">
+          <h1 className="desk-page-title">What&apos;s forming</h1>
+          {data && (
+            <span className={`desk-pill${data.mode === "live" ? " is-on" : ""}`}>
+              <span className={`desk-dot${data.mode === "live" ? " desk-dot--live" : ""}`} /> {data.mode === "live" ? "Live" : data.mode === "shadow" ? "Shadow" : "Off"}
+            </span>
+          )}
+        </div>
+        <p className="desk-hint" style={{ marginTop: 0 }}>
+          {data?.mode === "live" ? "Readers see one card per event and this Developing list."
+            : "Shadow: events are grouped here for you only. The app hasn’t changed."}
+        </p>
+        {data?.alarm && (
+          <div className="desk-notice desk-notice--bad" role="alert">
+            <strong>Developing alarm:</strong> too many stories are marked Developing. The app is showing only the 15 most active.
+          </div>
+        )}
+        {err && <div className="desk-notice desk-notice--bad" role="alert">{err} <button className="desk-btn desk-btn--quiet" type="button" onClick={load}>Try again</button></div>}
+        {section("building", "Building now", "Nothing is gathering pace right now.")}
+        {section("developing", "Developing", "No developing events. Promote one from Building now if it should be.")}
+        {section("settling", "Settling", "Nothing settling.")}
+      </main>
+    </>
+  );
+}
+
+function EventView({ api, id, back, open, toast }: {
+  api: ReturnType<typeof useApi>; id: string; back: () => void; open: (v: View) => void; toast: (m: string) => void;
+}) {
+  const [ev, setEv] = useState<EventDetail | null>(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState("");
+  const [splitting, setSplitting] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [removing, setRemoving] = useState("");
+  const [merging, setMerging] = useState(false);
+  const [query, setQuery] = useState("");
+  const [targets, setTargets] = useState<EventBrief[]>([]);
+  const [mergeInto, setMergeInto] = useState<EventBrief | null>(null);
+
+  const load = useCallback(async () => {
+    try { setEv(await api<EventDetail>("GET", `events/${id}`)); setErr(""); }
+    catch (e) { if ((e as HttpError).status !== 401) setErr((e as Error).message); }
+  }, [api, id]);
+  useEffect(() => { load(); }, [load]);
+
+  async function act(label: string, path: string, body: unknown, done: string, after?: (r: { event_id?: string }) => void) {
+    setBusy(label); setErr("");
+    try {
+      const r = await api<{ event_id?: string }>("POST", path, body);
+      toast(done);
+      if (after) after(r); else await load();
+    } catch (e) { if ((e as HttpError).status !== 401) setErr((e as Error).message); }
+    finally { setBusy(""); }
+  }
+
+  async function startMerge() {
+    setMerging(true);
+    try {
+      const nr = await api<Newsroom>("GET", "newsroom");
+      setTargets([...nr.developing, ...nr.building, ...nr.settling].filter((t) => t.event_id !== id));
+    } catch (e) { if ((e as HttpError).status !== 401) setErr((e as Error).message); }
+  }
+
+  const bar = (
+    <header className="desk-bar"><div className="desk-bar__inner">
+      <button className="desk-back" type="button" onClick={back}><Chevron dir="left" /> Newsroom</button>
+    </div></header>
+  );
+  if (!ev) {
+    return <>{bar}<main className="desk-shell desk-view">
+      {err ? <div className="desk-notice desk-notice--bad" role="alert">{err}</div> : <p className="desk-empty">Loading…</p>}
+    </main></>;
+  }
+  const lead = ev.members.find((m) => m.article_id === ev.lead_article_id) || ev.members[0];
+  const promoted = !!ev.desk?.promoted;
+  const hidden = !!ev.desk?.hidden;
+  const q = query.trim().toLowerCase();
+  const shown = targets.filter((t) => t.title.toLowerCase().includes(q)).slice(0, 8);
+
+  return (
+    <>{bar}
+      <main className="desk-shell desk-draft desk-view">
+        <p className="desk-kicker">{STATUS_LABEL[ev.status] || ev.status}{ev.category_v2 ? ` · ${ev.category_v2}` : ""}{ev.state ? ` · ${ev.state}` : ""}</p>
+        <h1 className="desk-page-title">{lead?.title || "Event"}</h1>
+        <p className="desk-hint" style={{ marginTop: 0 }}>
+          {ev.outlets_count || 0} outlet{ev.outlets_count === 1 ? "" : "s"}{ev.coverage_mix ? ` · ${mixLine(ev.coverage_mix)}` : ""} · {ev.members.length} article{ev.members.length === 1 ? "" : "s"}
+        </p>
+        {err && <div className="desk-notice desk-notice--bad" role="alert">{err}</div>}
+
+        <section className="desk-section">
+          <div className="desk-row-actions">
+            <button className="desk-btn" type="button" disabled={!!busy}
+              onClick={() => act("promote", `events/${id}/promote`, { on: !promoted }, promoted ? "No longer forced to Developing." : "Promoted to Developing.")}>
+              {busy === "promote" ? <Spinner /> : promoted ? "Unpromote" : "Promote to Developing"}
+            </button>
+            <button className={`desk-btn${hidden ? "" : " desk-btn--danger"}`} type="button" disabled={!!busy}
+              onClick={() => act("hide", `events/${id}/hide`, { on: !hidden }, hidden ? "Shown again." : "Hidden from readers.")}>
+              {busy === "hide" ? <Spinner /> : hidden ? "Show again" : "Hide"}
+            </button>
+            <button className="desk-btn" type="button" disabled={!!busy} onClick={merging ? () => { setMerging(false); setMergeInto(null); } : startMerge}>
+              {merging ? "Cancel merge" : "Merge into…"}
+            </button>
+            <button className="desk-btn" type="button" disabled={!!busy || ev.members.length < 2}
+              onClick={() => { setSplitting(!splitting); setPicked([]); }}>
+              {splitting ? "Cancel split" : "Split…"}
+            </button>
+          </div>
+          <p className="desk-hint">Promote forces it into Developing. Hide removes it from the app. Your changes stick: the engine won&apos;t undo them.</p>
+        </section>
+
+        {merging && (
+          <section className="desk-section" aria-labelledby="merge-title">
+            <h2 className="desk-section__title" id="merge-title">Merge into another event</h2>
+            {mergeInto ? (
+              <div className="desk-livecard">
+                <p className="desk-livecard__line">Merge into &ldquo;{mergeInto.title}&rdquo;?</p>
+                <p className="desk-livecard__sub">All {ev.members.length} articles move there and this event closes. Followers move with it.</p>
+                <div className="desk-livecard__actions">
+                  <button className="desk-btn" type="button" onClick={() => setMergeInto(null)}>Back</button>
+                  <button className="desk-btn desk-btn--primary" type="button" disabled={!!busy}
+                    onClick={() => act("merge", `events/${id}/merge`, { into: mergeInto.event_id }, "Merged.",
+                      (r) => open({ name: "event", id: r.event_id || mergeInto.event_id }))}>
+                    {busy === "merge" ? <Spinner /> : "Merge"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <label className="desk-label" htmlFor="merge-q">Find the event</label>
+                <input id="merge-q" className="desk-input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Words from its headline" autoComplete="off" />
+                <ul className="desk-list" style={{ marginTop: 8 }}>
+                  {shown.length === 0 ? <li className="desk-empty">No matching events from the last 36 hours.</li>
+                    : shown.map((t) => (
+                      <li key={t.event_id}>
+                        <button className="desk-row" type="button" onClick={() => setMergeInto(t)}>
+                          <span><p className="desk-row__title">{t.title}</p>
+                            <p className="desk-row__meta">{STATUS_LABEL[t.status] || t.status} · {t.outlets_count} outlets</p></span>
+                          <span className="desk-row__chev"><Chevron /></span>
+                        </button>
+                      </li>
+                    ))}
+                </ul>
+              </>
+            )}
+          </section>
+        )}
+
+        <section className="desk-section" aria-labelledby="members-title">
+          <h2 className="desk-section__title" id="members-title">
+            {splitting ? "Tick the articles that are a different story" : "Coverage"} <span className="count">{ev.members.length}</span>
+          </h2>
+          <ul className="desk-list">
+            {ev.members.map((m) => (
+              <li key={m.article_id}>
+                <div className="desk-row" style={{ cursor: "default" }}>
+                  {splitting && (
+                    <input type="checkbox" aria-label={`Split off ${m.title}`} checked={picked.includes(m.article_id)}
+                      onChange={(e) => setPicked(e.target.checked ? [...picked, m.article_id] : picked.filter((x) => x !== m.article_id))}
+                      style={{ width: 20, height: 20, marginRight: 10, flexShrink: 0 }} />
+                  )}
+                  <span style={{ flex: 1 }}>
+                    <p className="desk-row__title">{m.title}</p>
+                    <p className="desk-row__meta">
+                      {m.origin === "desk" ? "Chintan Desk" : m.publisher_name || (m.url ? outlet(m.url) : "")}
+                      {m.publisher_group && m.origin !== "desk" ? ` · ${m.publisher_group}` : ""}
+                      {m.syndicated_of ? " · wire copy" : ""}{m.article_id === ev.lead_article_id ? " · lead" : ""} · {ago(m.published_at)}
+                    </p>
+                  </span>
+                  {!splitting && m.origin !== "desk" && (removing === m.article_id ? (
+                    <span style={{ display: "flex", gap: 4 }}>
+                      <button className="desk-btn desk-btn--quiet" type="button" onClick={() => setRemoving("")}>Keep</button>
+                      <button className="desk-btn desk-btn--danger" type="button" disabled={!!busy}
+                        onClick={() => act("remove", `events/${id}/remove/${m.article_id}`, undefined, "Removed. It won’t be added back.", () => { setRemoving(""); load(); })}>
+                        Remove
+                      </button>
+                    </span>
+                  ) : (
+                    <button className="desk-btn desk-btn--quiet" type="button" onClick={() => setRemoving(m.article_id)}>Remove…</button>
+                  ))}
+                </div>
+              </li>
+            ))}
+          </ul>
+          {splitting && (
+            <button className="desk-btn desk-btn--primary desk-btn--block" type="button" style={{ marginTop: 12 }}
+              disabled={!!busy || picked.length === 0 || picked.length === ev.members.length}
+              onClick={() => act("split", `events/${id}/split`, { article_ids: picked }, "Split into a new event.",
+                (r) => { setSplitting(false); setPicked([]); if (r.event_id) open({ name: "event", id: r.event_id }); })}>
+              {busy === "split" ? <Spinner /> : picked.length ? `Break out ${picked.length} as a new event` : "Tick at least one"}
+            </button>
+          )}
+        </section>
+      </main>
+    </>
+  );
+}
+
 // ── app ─────────────────────────────────────────────────────────────────────
 function parseHash(): View {
   if (typeof window === "undefined") return { name: "home" };
   const [kind, id] = window.location.hash.replace(/^#/, "").split("/");
-  if ((kind === "draft" || kind === "item") && id && /^[A-Za-z0-9_-]{1,120}$/.test(id)) return { name: kind, id };
+  if ((kind === "draft" || kind === "item" || kind === "event") && id && /^[A-Za-z0-9_-]{1,120}$/.test(id)) return { name: kind, id };
   if (kind === "push") return { name: "push" };
+  if (kind === "newsroom") return { name: "newsroom" };
   return { name: "home" };
 }
 
@@ -1325,7 +1604,7 @@ export default function DeskApp() {
   }, [auth, reload]);
 
   function open(v: View) {
-    window.location.hash = v.name === "home" ? "" : v.name === "push" ? "push" : `${v.name}/${v.id}`;
+    window.location.hash = v.name === "home" ? "" : v.name === "push" || v.name === "newsroom" ? v.name : `${v.name}/${v.id}`;
     setView(v);
     window.scrollTo({ top: 0 });
   }
@@ -1355,6 +1634,7 @@ export default function DeskApp() {
         <header className="desk-bar"><div className="desk-bar__inner">
           <span className="desk-brand"><Surya size={20} />Desk</span>
           <span style={{ display: "flex", gap: 4 }}>
+            <button className="desk-btn desk-btn--quiet" type="button" onClick={() => open({ name: "newsroom" })}>Newsroom</button>
             <button className="desk-btn desk-btn--quiet" type="button" onClick={() => open({ name: "push" })}>Push</button>
             <button className="desk-btn desk-btn--quiet" type="button" onClick={signOut} title={email}>Sign out</button>
           </span>
@@ -1375,6 +1655,8 @@ export default function DeskApp() {
       )}
       {view.name === "item" && <ItemView api={api} id={view.id} items={items} reload={reload} back={() => open({ name: "home" })} toast={toast} />}
       {view.name === "push" && <PushView api={api} back={() => open({ name: "home" })} toast={toast} />}
+      {view.name === "newsroom" && <NewsroomView api={api} back={() => open({ name: "home" })} open={open} />}
+      {view.name === "event" && <EventView key={view.id} api={api} id={view.id} back={() => open({ name: "newsroom" })} open={open} toast={toast} />}
       {toastMsg && <div className="desk-toast" role="status">{toastMsg}</div>}
     </>
   );
