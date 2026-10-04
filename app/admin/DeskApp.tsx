@@ -35,7 +35,7 @@ type LiveItem = {
 type Boosted = { type: "article" | "story"; id: string; title: string; heat: Heat | null; boosted_at: string; visible: boolean };
 type Items = { drafts: Draft[]; published: LiveItem[]; boosted?: Boosted[] };
 type View = { name: "home" } | { name: "draft"; id: string } | { name: "item"; id: string } | { name: "push" }
-  | { name: "newsroom" } | { name: "event"; id: string } | { name: "golden" };
+  | { name: "newsroom" } | { name: "event"; id: string } | { name: "golden" } | { name: "bureau" };
 type EventBrief = {
   event_id: string; title: string; status: string; size: number; outlets_count: number;
   coverage_mix: Record<string, number>; category: string | null; last_member_at: string | null;
@@ -1675,6 +1675,214 @@ function GoldenView({ api, back }: { api: ReturnType<typeof useApi>; back: () =>
   );
 }
 
+// ── The Bureau: check hidden summaries before readers see them (CEO T1) ──────
+type BureauKeyNumber = { value?: string; unit?: string; label?: string; delta?: string } | null;
+type BureauItem = {
+  official_id: string; source: string; source_name?: string; source_url: string; issuer: string;
+  ministry?: string | null; kind: string; title: string; published_at: string; what_changed: string;
+  key_number: BureauKeyNumber; facts: string[]; who: string[]; dates: { label: string; date: string }[];
+  analogy: string; summary: string; importance: string; importance_override?: string;
+  verified_dropped: string[]; needs_desk: boolean; title_only?: boolean; source_text?: string;
+};
+type BureauSummary = {
+  checked: number; facts_ok: number | null; readable: number | null; passed: boolean;
+  gate: { facts: number; readable: number; min_checked: number };
+  by_source: Record<string, { checked: number; facts_ok: number | null; readable: number | null }>;
+  notes: { official_id: string; note: string }[];
+};
+type BureauHealth = {
+  mode: string; alarm: boolean; llm_today?: number; llm_cap?: number;
+  sources: Record<string, { silent: boolean; broken: boolean; kept_24h?: number; filtered_24h?: number; last_error?: string | null }>;
+};
+
+const SOURCE_LABEL: Record<string, string> = {
+  pib: "PIB", rbi_press: "RBI press", rbi_notif: "RBI circulars", sebi: "SEBI",
+  dgft: "DGFT", cbic: "CBIC", mospi: "MoSPI", gazette: "Gazette", parliament: "Parliament",
+};
+const KIND_LABEL: Record<string, string> = {
+  cabinet_decision: "Cabinet decision", policy: "Policy", circular: "Circular", notification: "Notification",
+  scheme: "Scheme", consultation: "Consultation", appointment: "Appointment", data_release: "Data",
+  mou: "Agreement", statement: "Statement", event: "Event", bill: "Bill",
+};
+
+function BureauView({ api, back, toast }: { api: ReturnType<typeof useApi>; back: () => void; toast: (m: string) => void }) {
+  const [items, setItems] = useState<BureauItem[] | null>(null);
+  const [summary, setSummary] = useState<BureauSummary | null>(null);
+  const [health, setHealth] = useState<BureauHealth | null>(null);
+  const [i, setI] = useState(0);
+  const [facts, setFacts] = useState<"" | "yes" | "no">("");
+  const [readable, setReadable] = useState<"" | "yes" | "no">("");
+  const [note, setNote] = useState("");
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await api<{ items: BureauItem[]; summary: BureauSummary; health: BureauHealth }>("GET", "bureau/review");
+      setItems(r.items); setSummary(r.summary); setHealth(r.health); setI(0); setErr("");
+    } catch (e) { if ((e as HttpError).status !== 401) setErr((e as Error).message); }
+  }, [api]);
+  useEffect(() => { load(); }, [load]);
+
+  function next() { setFacts(""); setReadable(""); setNote(""); setI((n) => n + 1); window.scrollTo({ top: 0 }); }
+
+  async function save() {
+    if (!items || !facts || !readable) return;
+    setBusy(true);
+    try {
+      setSummary(await api<BureauSummary>("POST", "bureau/labels", {
+        official_id: items[i].official_id, facts_ok: facts === "yes", readable: readable === "yes", note: note.trim(),
+      }));
+      next();
+    } catch (e) { if ((e as HttpError).status !== 401) setErr((e as Error).message); }
+    setBusy(false);
+  }
+
+  async function setLevel(level: string) {
+    if (!items) return;
+    const it = items[i];
+    try {
+      await api("POST", `bureau/items/${it.official_id}/importance`, { level });
+      setItems(items.map((x, k) => (k === i ? { ...x, importance_override: level } : x)));
+      toast(`Importance set to ${level}`);
+    } catch (e) { if ((e as HttpError).status !== 401) setErr((e as Error).message); }
+  }
+
+  const it = items && i < items.length ? items[i] : null;
+  const kn = it?.key_number;
+  const removed = (it?.verified_dropped || []).filter((d) => !["no_text", "llm_cap", "bad_json"].includes(d));
+
+  return (
+    <>
+      <header className="desk-bar"><div className="desk-bar__inner">
+        <button className="desk-back" type="button" onClick={back}><Chevron dir="left" /> Home</button>
+      </div></header>
+      <main className="desk-shell desk-draft desk-view">
+        <p className="desk-kicker">The Bureau</p>
+        <h1 className="desk-page-title">Check the summaries</h1>
+        <p className="desk-hint" style={{ marginTop: 0 }}>
+          Readers see nothing until {summary?.gate.min_checked ?? 30} checks show the facts right at least{" "}
+          {summary ? pct(summary.gate.facts) : "95%"} of the time and easy to understand at least{" "}
+          {summary ? pct(summary.gate.readable) : "85%"}.
+        </p>
+        {err && <div className="desk-notice desk-notice--bad" role="alert">{err}</div>}
+
+        {health && (
+          <div className="desk-chips" style={{ marginBottom: 18 }} aria-label="Sources">
+            {Object.entries(health.sources).map(([name, s]) => (
+              <span key={name} className="desk-chip" style={{ display: "inline-flex", alignItems: "center", cursor: "default",
+                borderColor: s.broken ? "rgba(220,38,38,0.7)" : s.silent ? "rgba(245,158,11,0.7)" : undefined }}
+                title={s.last_error || undefined}>
+                {SOURCE_LABEL[name] || name}: {s.broken ? "broken" : s.silent ? "quiet too long" : `${s.kept_24h ?? 0} today`}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {!items ? <p className="desk-empty">Loading…</p> : it ? (
+          <section className="desk-section" aria-live="polite">
+            <p className="desk-row__meta" style={{ marginBottom: 10 }}>
+              {i + 1} of {items.length} · {SOURCE_LABEL[it.source] || it.source} · {KIND_LABEL[it.kind] || it.kind} · {ago(it.published_at)}
+            </p>
+
+            <div className="desk-livecard" style={{ marginBottom: 12 }}>
+              <p className="desk-row__meta" style={{ margin: "0 0 8px" }}>
+                {it.issuer}{it.ministry ? ` · ${it.ministry}` : ""}
+              </p>
+              {kn && kn.value && (
+                <p style={{ margin: "0 0 6px", font: "700 34px/1.05 var(--font-serif, Georgia, serif)" }}>
+                  {kn.value}{kn.unit === "%" ? "%" : kn.unit ? ` ${kn.unit}` : ""}
+                  {kn.delta && <span style={{ font: "600 14px var(--sans)", marginLeft: 10, color: "var(--desk-sub)" }}>{kn.delta} {kn.label || ""}</span>}
+                </p>
+              )}
+              <p className="desk-livecard__line" style={{ fontFamily: "var(--font-serif, Georgia, serif)", fontSize: 19 }}>{it.what_changed}</p>
+              {it.facts.length > 0 && (
+                <div className="desk-chips" style={{ margin: "10px 0" }}>
+                  {it.facts.map((f) => <span key={f} className="desk-chip" style={{ cursor: "default", minHeight: 32 }}>{f}</span>)}
+                </div>
+              )}
+              {it.analogy && <p className="desk-livecard__sub" style={{ fontFamily: "var(--font-serif, Georgia, serif)", fontStyle: "italic", fontSize: 15 }}>Think of it like: {it.analogy}</p>}
+              {it.who.length > 0 && <p className="desk-row__meta" style={{ marginTop: 8 }}>Who: {it.who.join(", ")}</p>}
+              {it.dates.length > 0 && <p className="desk-row__meta">Dates: {it.dates.map((d) => `${d.label} ${d.date}`).join(" · ")}</p>}
+              {it.summary && <p className="desk-livecard__sub" style={{ marginTop: 10, fontFamily: "var(--sans)", fontSize: 15, lineHeight: 1.55 }}>{it.summary}</p>}
+            </div>
+
+            {(it.title_only || it.needs_desk || removed.length > 0) && (
+              <div className="desk-notice" role="note" style={{ marginBottom: 12 }}>
+                {it.title_only && <p style={{ margin: 0 }}>No text could be read from the source: readers would see the title and a link.</p>}
+                {removed.length > 0 && <p style={{ margin: 0 }}>Removed because the source doesn&apos;t say it: {removed.join(", ")}</p>}
+                {it.needs_desk && !it.title_only && <p style={{ margin: 0 }}>Flagged for a closer look.</p>}
+              </div>
+            )}
+
+            <details style={{ marginBottom: 16 }}>
+              <summary className="desk-btn desk-btn--quiet" style={{ display: "inline-flex" }}>Compare with the source</summary>
+              <p className="desk-row__meta" style={{ margin: "10px 0 6px" }}>
+                <a href={it.source_url} target="_blank" rel="noopener noreferrer">Open the original ↗</a> · {it.title}
+              </p>
+              <div style={{ whiteSpace: "pre-wrap", maxHeight: 360, overflow: "auto", fontSize: 14, lineHeight: 1.55,
+                padding: 12, border: "1px solid var(--desk-line)", borderRadius: 12, color: "var(--desk-sub)" }}>
+                {it.source_text || "Source text wasn't kept for this older item. Use the link above."}
+              </div>
+            </details>
+
+            <div className="desk-field">
+              <span className="desk-label" id="bq-facts">Are the facts right?</span>
+              <Choice label="Are the facts right?" value={facts} onChange={setFacts} variant="seg" describedBy="bq-facts"
+                options={[{ v: "yes", label: "Yes, all right" }, { v: "no", label: "Something's wrong" }]} />
+            </div>
+            <div className="desk-field">
+              <span className="desk-label" id="bq-read">Easy to understand?</span>
+              <Choice label="Easy to understand?" value={readable} onChange={setReadable} variant="seg" describedBy="bq-read"
+                options={[{ v: "yes", label: "Yes, clear" }, { v: "no", label: "Not really" }]} />
+            </div>
+            <div className="desk-field">
+              <label className="desk-label" htmlFor="bq-note">What&apos;s off? (optional)</label>
+              <textarea id="bq-note" className="desk-textarea" maxLength={500} value={note} onChange={(e) => setNote(e.target.value)}
+                placeholder="e.g. wrong amount, too long, missed the main point" />
+            </div>
+            <div className="desk-field">
+              <span className="desk-label" id="bq-imp">Importance (changes what reaches the feed and pushes)</span>
+              <Choice label="Importance" value={it.importance_override || it.importance} onChange={setLevel} variant="seg" describedBy="bq-imp"
+                options={[{ v: "never", label: "Hide" }, { v: "low", label: "Low" }, { v: "normal", label: "Normal" }, { v: "high", label: "High" }]} />
+            </div>
+            <div className="desk-row-actions" style={{ marginTop: 6 }}>
+              <button className="desk-btn desk-btn--primary" type="button" disabled={busy || !facts || !readable} onClick={save}>Save and next</button>
+              <button className="desk-btn desk-btn--quiet" type="button" disabled={busy} onClick={next}>Skip</button>
+            </div>
+          </section>
+        ) : (
+          <section className="desk-section">
+            <p className="desk-empty" style={{ textAlign: "left" }}>
+              {items.length === 0 ? "Nothing new to check. The Bureau collects every 10 minutes by day; come back later." : "That's this batch done. Thank you."}
+            </p>
+            <button className="desk-btn desk-btn--block" type="button" onClick={load}>Load more</button>
+          </section>
+        )}
+
+        {summary && summary.checked > 0 && (
+          <section className="desk-section" aria-labelledby="bureau-score">
+            <h2 className="desk-section__title" id="bureau-score">Score so far <span className="count">{summary.checked}</span></h2>
+            <table className="desk-table">
+              <tbody>
+                <tr><th scope="row">Facts right</th><td>{pct(summary.facts_ok)} (needs {pct(summary.gate.facts)})</td></tr>
+                <tr><th scope="row">Easy to understand</th><td>{pct(summary.readable)} (needs {pct(summary.gate.readable)})</td></tr>
+                {Object.entries(summary.by_source).map(([s, v]) => (
+                  <tr key={s}><th scope="row">{SOURCE_LABEL[s] || s}</th><td>{v.checked} checked · facts {pct(v.facts_ok)} · clear {pct(v.readable)}</td></tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="desk-hint">
+              {summary.checked < summary.gate.min_checked ? `Check at least ${summary.gate.min_checked} before deciding.`
+                : summary.passed ? "Meets the bar. The Bureau can go live with app 1.14." : "Not there yet: the summaries need tuning first."}
+            </p>
+          </section>
+        )}
+      </main>
+    </>
+  );
+}
+
 // ── app ─────────────────────────────────────────────────────────────────────
 function parseHash(): View {
   if (typeof window === "undefined") return { name: "home" };
@@ -1683,6 +1891,7 @@ function parseHash(): View {
   if (kind === "push") return { name: "push" };
   if (kind === "newsroom") return { name: "newsroom" };
   if (kind === "golden") return { name: "golden" };
+  if (kind === "bureau") return { name: "bureau" };
   return { name: "home" };
 }
 
@@ -1742,7 +1951,7 @@ export default function DeskApp() {
   }, [auth, reload]);
 
   function open(v: View) {
-    window.location.hash = v.name === "home" ? "" : v.name === "push" || v.name === "newsroom" || v.name === "golden" ? v.name : `${v.name}/${v.id}`;
+    window.location.hash = v.name === "home" ? "" : v.name === "push" || v.name === "newsroom" || v.name === "golden" || v.name === "bureau" ? v.name : `${v.name}/${v.id}`;
     setView(v);
     window.scrollTo({ top: 0 });
   }
@@ -1774,6 +1983,7 @@ export default function DeskApp() {
           <span style={{ display: "flex", gap: 4 }}>
             <button className="desk-btn desk-btn--quiet" type="button" onClick={() => open({ name: "newsroom" })}>Newsroom</button>
             <button className="desk-btn desk-btn--quiet" type="button" onClick={() => open({ name: "push" })}>Push</button>
+            <button className="desk-btn desk-btn--quiet" type="button" onClick={() => open({ name: "bureau" })}>The Bureau</button>
             <button className="desk-btn desk-btn--quiet" type="button" onClick={signOut} title={email}>Sign out</button>
           </span>
         </div></header>
@@ -1795,6 +2005,7 @@ export default function DeskApp() {
       {view.name === "push" && <PushView api={api} back={() => open({ name: "home" })} toast={toast} />}
       {view.name === "newsroom" && <NewsroomView api={api} back={() => open({ name: "home" })} open={open} />}
       {view.name === "golden" && <GoldenView api={api} back={() => open({ name: "newsroom" })} />}
+      {view.name === "bureau" && <BureauView api={api} back={() => open({ name: "home" })} toast={toast} />}
       {view.name === "event" && <EventView key={view.id} api={api} id={view.id} back={() => open({ name: "newsroom" })} open={open} toast={toast} />}
       {toastMsg && <div className="desk-toast" role="status">{toastMsg}</div>}
     </>
