@@ -1697,7 +1697,8 @@ type BureauHealth = {
 
 const SOURCE_LABEL: Record<string, string> = {
   pib: "PIB", rbi_press: "RBI press", rbi_notif: "RBI circulars", sebi: "SEBI",
-  dgft: "DGFT", cbic: "CBIC", mospi: "MoSPI", gazette: "Gazette", parliament: "Parliament",
+  dgft_notif: "DGFT notifications", dgft_public: "DGFT public notices", mospi: "MoSPI",
+  parliament_ls: "Lok Sabha bills", parliament_rs: "Rajya Sabha bills",
 };
 const KIND_LABEL: Record<string, string> = {
   cabinet_decision: "Cabinet decision", policy: "Policy", circular: "Circular", notification: "Notification",
